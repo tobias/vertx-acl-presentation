@@ -1,0 +1,289 @@
+#+Title: Introduction to Vert.x
+#+Author: Toby Crawley
+#+Email: toby@tcrawley.org
+
+#+OPTIONS: toc:nil reveal_center:t reveal_progress:t reveal_history:nil reveal_control:t
+#+OPTIONS: reveal_mathjax:t reveal_rolling_links:t reveal_keyboard:t reveal_overview:t num:nil
+#+REVEAL_MARGIN: 0.1
+#+REVEAL_MIN_SCALE: 0.5
+#+REVEAL_MAX_SCALE: 2.5
+#+REVEAL_TRANS: none
+#+REVEAL_THEME: serif
+#+REVEAL_HLEVEL: 1
+#+REVEAL_HEAD_PREAMBLE: <meta name="description" content="Intro to Vert.x.">
+
+* What is Vert.x?
+  - Asynchronous polyglot application platform
+  - JVM based
+  - Similar to Node.js, but not a clone
+  - Thread safe (pretend you're the only one)
+** Polyglot
+  - Java
+  - JRuby
+  - Jython
+  - JavaScript/CoffeeScript (Rhino/DynJS (in-progress))
+  - Groovy
+  - Scala (in-progress)
+  - Clojure (in-progress)
+  - All with a similar API
+** Provides
+  - Async TCP/HTTP/HTTPS/Websocket clients
+  - Async TCP/HTTP/HTTPS/Websocket servers
+  - Distributed event bus
+  - Timers
+* Why Async?
+  - What?
+  - Back to work!
+  - Thousands of concurrent connections
+  - Speed
+#+ATTR_REVEAL: :frag roll-in
+  415,000 requests/sec
+** Java Example
+#+BEGIN_SRC java
+  HttpClient client = vertx.createHttpClient()
+      .setHost("foo.com")
+      .setPort(8080);
+  
+  // Create a request with a response handler    
+  client.get("/some-path/",
+             new Handler<HttpClientResponse>() {
+                 public void handle(HttpClientResponse resp) {
+                     log.info("Got a response: " + resp.statusCode());
+                 }
+             })
+      .end();
+#+END_SRC
+** Ruby Example
+#+BEGIN_SRC ruby
+  client = Vertx::HttpClient.new
+  client.host = 'foo.com'
+  client.port = 8080
+  
+  # Create a request with a response handler    
+  client.get('/some-path/') { |resp|
+    puts "got response #{resp.status_code}" 
+  }.end
+#+END_SRC
+** Clojure Example
+#+BEGIN_SRC clojure
+  (require '[vertx.http :as http])
+  
+  (-> (http/client {:host "foo.com"
+                    :port 8080})
+      (http/request :GET "/some-path/"
+        (fn [resp]
+          (println "got response" (http/status-code resp))))
+      http/end)
+#+END_SRC
+* Verticles
+  - The unit of deployment
+  - Many in one (any language)
+** Verticles
+  Start with a verticle:
+#+BEGIN_SRC sh
+  vertx run my_app.js -conf cfg.json -instances 3
+#+END_SRC
+
+  Deploy one programmatically: 
+#+BEGIN_SRC ruby
+  vertx.deploy_verticle('my_app.clj') do |err, deployment_id|
+    puts 'deploy successful!' unless err
+  end
+#+END_SRC
+* Event/Reactor Loop
+  [[./event-loop.png]]
+** Event/Reactor Loop(s)
+  - Defaults to one/processor
+  - Verticle tied to one loop (so one thread)
+  - Thread safety
+** DON'T BLOCK THE EVENT LOOP
+   :PROPERTIES:
+   :reveal_data_state: alert
+   :END:
+  - =Thread.sleep()=
+  - =Object.wait()=
+  - =CountDownLatch.await()= or any other blocking operating from =java.util.concurrent=
+  - =while(true) {puts "King of the world!"}=
+  - Long-lived computationally intensive operations
+  - Blocking operations that might take some time to complete (e.g. DB query)
+* Worker Verticles
+  - Can block
+  - Uses thread pool
+  - Verticle still called by one thread /at a time/
+* Modules
+  - The unit of distribution
+  - Reusable, shareable artifacts (zip files)
+  - Can contain verticles
+  - Can depend on other modules
+* Timers
+  - Do something in the future
+  - One-shot & periodic
+** Timers
+#+BEGIN_SRC clojure
+  (require '[vertx.core :as v])
+  
+  (v/timer 5000
+    (println "I'm 5 seconds in the future!"))
+  
+  (v/periodic 2000
+    (println "I SHOUT EVERY 2 SECONDS!!!"))
+  
+  (println "I'm printed before either of those yahoos")
+#+END_SRC
+* Eventbus
+  - Message passing between components
+  - Scalars & JSON
+  - Inter/intra verticle/cluster nodes
+  - Point-to-point
+    - Request/respond
+  - Broadcast
+** Javascript Example
+#+BEGIN_SRC javascript
+  var eb = vertx.eventBus;
+      
+  eb.registerHandler('global.notifications', 
+                     function(message) {
+                         console.log('Message rcvd: ' + message);
+                     });
+  
+  eb.registerHandler('some.address', 
+                     function(message, replyFn) {
+                         console.log('Message rcvd: ' + message);
+                         replyFn('Roger that');
+                     });
+   
+  // publish to all handlers
+  eb.publish("global.notifications", {some: "value"});
+  
+  // send to one handler and handle the reply
+  eb.send("some.address", "ahoyhoy",
+         function(message) {
+             console.log("Reply: " + message);
+         });
+
+#+END_SRC
+** Clojure Example
+#+BEGIN_SRC clojure
+  (require '[vertx.eventbus :as eb])
+  
+  (eb/register-handler "global.notifications"
+    (fn [m]
+      (println "Message rcvd:" m)))
+  
+  ;; A replying handler
+  (eb/register-handler "some.address"
+    (fn [m]
+      (println "Message rcvd:" m)
+      (eb/reply "Roger that")))
+  
+  ;; publish to all handlers
+  (eb/publish "global.notifications" {:some "value"})
+  
+  ;; send to one handler and handle the reply
+  (eb/send "some.adress" "ahoyhoy"
+           (partial println "Reply:"))
+  
+#+END_SRC
+** Clustering
+   - Distributed event bus
+   - Efficient distribution
+#+BEGIN_SRC sh
+  vertx run my_app.py -cluster &
+  vertx run my_app.py -cluster 
+#+END_SRC
+** To the browser 
+   - Browser is a peer in the eventbus
+   - SockJS
+   - Live demo at the end
+* SharedData
+  - Share maps or sets between verticles
+  - Only store immutable things
+** SharedData
+#+BEGIN_SRC ruby
+  hash = Vertx::SharedData.get_hash('demo.myhash')
+  hash['some-key'] = 'some-value'
+#+END_SRC
+And then, in a different verticle:
+
+#+BEGIN_SRC ruby
+  hash = Vertx::SharedData.get_hash('demo.myhash')
+  puts "value of some-key is #{hash['some-key']}"
+#+END_SRC
+* "Callback Hell"
+  [[./hell.jpg]]
+  http://www.flickr.com/photos/googly/8138508
+** "Callback Hell"
+#+BEGIN_SRC java
+  HttpClient client = vertx.createHttpClient()
+      .setHost("foo.com")
+      .setPort(8080);
+    
+  client.get("/some-path/",
+    new Handler<HttpClientResponse>() {
+      public void handle(HttpClientResponse resp) {
+        resp.bodyHandler(new Handler<Buffer>() {
+          public void handle(Buffer buf) {
+            vertx.eventBus().send("some.worker", buf,
+              new Handler<Message<String>>() {
+                public void handle(Message<String> m) {
+                  if ("ok".equals(m.body())) {
+                    client.post("/a-ok/", 
+                      new Handler<HttpClientResponse>() {
+                        public void handle(HttpClientResponse resp) {                 
+                          //do more!
+                        }
+                      }).end();
+                  }
+                }
+             });
+          }
+        });
+      }
+    }).end();
+#+END_SRC
+** "Callback Hell"
+  - Don't use Java :) 
+  - Use RxJava
+** "Callback Hell"
+#+BEGIN_SRC java
+  HttpClient client = vertx.createHttpClient()
+      .setHost("foo.com")
+      .setPort(8080);
+    
+  RxHttpClient rxclient = new RxHttpClient(client);
+  RxEventBus rxbus = new RxEventBus(vertx.eventBus());
+  
+  rxclient.get("/some-path/")
+    .mapMany(downloadBody())
+    .subscribe(new Action1<Buffer>() {
+      public void call (Buffer buf) {
+        rxbus.send("some.worker", buf)
+          .mapMany(new Func1<RxMessage<String>>, Observable<RxMessage<String>>>() {
+            public Observable<RxMessage<String>> call(RxMessage<String> m) {
+              if ("ok".equals(m.body())) {
+                rxclient.post("/a-ok/")
+                  .subscribe(new Action1<HttpClientResponse>() {
+                     public void call (HttpClientResponse resp) {
+                       //do more!
+                     }
+                   });
+              }
+            }
+          });
+      }
+    });     
+#+END_SRC
+
+* Drawbacks
+  - D.B.T.E.L.
+  - Callback Hades
+  - Standard packaging systems
+  - Lack of frameworks
+* Live Demo
+* Resources
+  - http://vertx.io/
+  - #vertx on freenode.net
+  - https://github.com/vert-x/
+  - https://groups.google.com/forum/#!forum/vertx 
+  - https://github.com/Netflix/RxJava
+
