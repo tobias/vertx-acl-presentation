@@ -286,4 +286,5 @@ And then, in a different verticle:
   - https://github.com/vert-x/
   - https://groups.google.com/forum/#!forum/vertx 
   - https://github.com/Netflix/RxJava
+  - https://github.com/tobias/vertx-acl-presentation
 
