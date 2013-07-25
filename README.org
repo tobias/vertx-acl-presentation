@@ -1,0 +1,24 @@
+* Introduction to Vert.x presentation
+
+  This is a presentation I gave at
+  http://www.meetup.com/Asheville-Coders-League/ on 24-July-2013. You
+  can view the rendered slides at
+  http://tcrawley.org/presentations/vertx-acl/vertx.html.
+
+** Sample app
+
+   To run the sample app:
+   1) [[https://bintray.com/vertx/downloads/distribution/2.0.0-final][install Vert.x]]
+   2) =vertx/bin= to your path 
+   3) =cd sample-app/=
+   4) =vertx run bridge_server.js=
+   5) point a browser at [[http://localhost:8081/]]
+
+   In my demo, I used the Clojure verticle instead (=app.clj=), but
+   using that requires manually installing the [[https://github.com/vert-x/mod-lang-clojure/][Clojure module]]. Give
+   that a shot if you're feeling froggy.
+
+** License
+   
+   The presentation is licensed under [[http://creativecommons.org/licenses/by-sa/3.0/][cc-by-sa 3.0]]. The sample code is
+   adapted from a [[https://github.com/vert-x/vertx-examples/tree/master/src/raw/javascript/eventbusbridge][Vert.x example]], and carries forward that license.
